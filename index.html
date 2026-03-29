@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>WhatsApp Chat</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <style>
         :root {
             --wa-bg: #e5ddd5;
@@ -16,96 +18,77 @@
             --wa-blue: #53bdeb;
             --wa-green: #00a884;
         }
-
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-
         body, html {
             margin: 0; padding: 0; height: 100%; width: 100%;
             overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--wa-bg);
         }
-
         body { display: flex; flex-direction: column; }
-
         .search-panel {
             flex: 0 0 auto; background-color: var(--wa-panel);
             padding: 10px 15px; display: flex; align-items: center;
             justify-content: space-between; gap: 10px; z-index: 1000;
         }
-
-        .search-panel input[type="date"] {
+        .search-panel input {
             flex: 1; padding: 8px; border-radius: 8px; border: 1px solid #ccc; font-size: 14px;
         }
-
         .chat-wrapper {
             flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
             display: flex; flex-direction: column;
             background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
             background-repeat: repeat;
         }
-
         .chat-container { width: 100%; max-width: 800px; margin: 0 auto; padding: 10px 0; }
-
-        .date-divider { text-align: center; margin: 15px 0; position: sticky; top: 10px; z-index: 10; }
+        .date-divider {
+            text-align: center;
+            margin: 15px 0;
+            /* position: sticky; убрано для корректной прокрутки */
+        }
         .date-divider span {
             background-color: #ffffff; padding: 5px 12px; border-radius: 8px;
             font-size: 12px; color: var(--wa-secondary); box-shadow: 0 1px 0.5px rgba(0,0,0,0.13);
         }
-
         .message { display: flex; margin: 4px 16px; }
         .message-right { justify-content: flex-end; }
-
         .bubble {
             max-width: 85%; padding: 8px; border-radius: 8px;
             position: relative; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13);
         }
         .bubble-right { background-color: var(--wa-bubble-out); }
         .bubble-left { background-color: var(--wa-bubble-in); }
-
         .text { font-size: 15px; line-height: 1.4; color: var(--wa-text); white-space: pre-wrap; }
         .time { font-size: 11px; color: var(--wa-secondary); text-align: right; margin-top: 4px; }
-
-        /* --- WhatsApp Voice Message UI --- */
         .voice-player {
             display: flex; align-items: center; gap: 10px;
             padding: 5px; min-width: 220px; user-select: none;
         }
-
         .play-btn {
             width: 40px; height: 40px; border-radius: 50%;
             border: none; background: transparent; cursor: pointer;
             display: flex; align-items: center; justify-content: center;
             font-size: 24px; color: var(--wa-secondary);
         }
-
         .player-controls { flex: 1; display: flex; flex-direction: column; gap: 4px; }
-        
         .progress-bar {
             width: 100%; height: 4px; background: rgba(0,0,0,0.1);
             border-radius: 2px; position: relative; cursor: pointer;
         }
-
         .progress-fill {
             height: 100%; background: var(--wa-blue);
             width: 0%; border-radius: 2px; position: relative;
         }
-
         .progress-fill::after {
             content: ''; position: absolute; right: -4px; top: -3px;
             width: 10px; height: 10px; background: var(--wa-blue);
             border-radius: 50%;
         }
-
         .player-info { display: flex; justify-content: space-between; font-size: 11px; color: var(--wa-secondary); }
-
         .speed-badge {
             background: #e1f3fb; color: #128c7e; padding: 2px 6px;
             border-radius: 10px; font-weight: bold; cursor: pointer;
             font-size: 10px; border: 1px solid #b3e0f2;
         }
-
-        .avatar-voice { width: 45px; height: 45px; border-radius: 50%; background: #ccc; flex-shrink: 0; }
-
         .media-image { max-width: 100%; border-radius: 6px; margin: 4px 0; }
         .video-placeholder { background: #000; color: #fff; padding: 20px; text-align: center; border-radius: 8px; }
         .audio-placeholder { margin: 4px 0; }
@@ -117,12 +100,27 @@
         .media-doc { display: inline-block; background: #e9ecef; padding: 4px 8px; border-radius: 6px; text-decoration: none; color: #0669de; }
         .media-missing { color: red; font-size: 12px; }
         .media-omitted { color: #888; font-style: italic; font-size: 12px; }
+        .flatpickr-calendar {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .flatpickr-day.disabled, .flatpickr-day.disabled:hover {
+            background: #f0f0f0;
+            color: #ccc;
+            text-decoration: line-through;
+            cursor: default;
+        }
+        .flatpickr-day.selected {
+            background: var(--wa-green);
+            border-color: var(--wa-green);
+        }
     </style>
 </head>
 <body>
 
 <div class="search-panel">
-    <input type="date" id="date-search">
+    <input type="text" id="date-search" placeholder="Выберите дату">
 </div>
 
 <div class="chat-wrapper" id="scroll-wrapper">
@@ -134,7 +132,6 @@
     const yourName = "investklimat";
     const container = document.getElementById('messages');
 
-    // Кастомный плеер для аудио (полностью сохранён из исходного шаблона)
     function createVoicePlayer(src) {
         const id = 'player-' + Math.random().toString(36).substr(2, 9);
         return `
@@ -154,7 +151,7 @@
         `;
     }
 
-    let currentAudioId = null; // для автоматической остановки предыдущего
+    let currentAudioId = null;
 
     window.togglePlay = (id, src) => {
         const audio = document.getElementById(id + '-audio');
@@ -218,7 +215,6 @@
         if (audio.duration) audio.currentTime = pos * audio.duration;
     };
 
-    // Динамическая загрузка аудио-плеера по клику
     function setupAudioPlaceholders() {
         document.querySelectorAll('.audio-placeholder').forEach(placeholder => {
             const btn = placeholder.querySelector('.load-audio');
@@ -242,7 +238,6 @@
         });
     }
 
-    // Динамическая загрузка видео
     function setupVideoPlaceholders() {
         document.querySelectorAll('.video-placeholder').forEach(placeholder => {
             const btn = placeholder.querySelector('.load-video');
@@ -273,22 +268,20 @@
         });
     }
 
-    // Рендеринг сообщений (без автоматической замены плейсхолдеров)
     let lastDate = null;
     messages.forEach(msg => {
         if (lastDate !== msg.date_label) {
             const div = document.createElement('div');
             div.className = 'date-divider';
-            div.id = 'date-' + new Date(msg.timestamp * 1000).toISOString().split('T')[0];
+            const dateId = new Date(msg.timestamp * 1000).toISOString().split('T')[0];
+            div.id = 'date-' + dateId;
             div.innerHTML = `<span>${msg.date_label}</span>`;
             container.appendChild(div);
             lastDate = msg.date_label;
         }
-
         const isMe = msg.author === yourName;
         const msgDiv = document.createElement('div');
         msgDiv.className = `message ${isMe ? 'message-right' : ''}`;
-        
         let mediaHtml = msg.media || "";
         msgDiv.innerHTML = `
             <div class="bubble ${isMe ? 'bubble-right' : 'bubble-left'}">
@@ -301,14 +294,56 @@
         container.appendChild(msgDiv);
     });
 
-    // Активируем обработчики после вставки DOM
     setupAudioPlaceholders();
     setupVideoPlaceholders();
 
-    // Поиск по дате
-    document.getElementById('date-search').addEventListener('change', e => {
-        const target = document.getElementById('date-' + e.target.value);
-        if (target) target.scrollIntoView({ behavior: 'smooth' });
+    // === КАЛЕНДАРЬ FLATPICKR ===
+    const availableDatesSet = new Set();
+    messages.forEach(msg => {
+        const d = new Date(msg.timestamp * 1000);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        availableDatesSet.add(`${yyyy}-${mm}-${dd}`);
+    });
+
+    const firstDate = new Date(messages[0].timestamp * 1000);
+    const lastDateMsg = new Date(messages[messages.length-1].timestamp * 1000);
+    const minDate = new Date(firstDate.getFullYear(), firstDate.getMonth(), firstDate.getDate());
+    const maxDate = new Date(lastDateMsg.getFullYear(), lastDateMsg.getMonth(), lastDateMsg.getDate());
+
+    const disabledDates = [];
+    let current = new Date(minDate);
+    while (current <= maxDate) {
+        const yyyy = current.getFullYear();
+        const mm = String(current.getMonth() + 1).padStart(2, '0');
+        const dd = String(current.getDate()).padStart(2, '0');
+        const dateStr = `${yyyy}-${mm}-${dd}`;
+        if (!availableDatesSet.has(dateStr)) {
+            disabledDates.push(dateStr);
+        }
+        current.setDate(current.getDate() + 1);
+    }
+
+    flatpickr("#date-search", {
+        dateFormat: "Y-m-d",
+        minDate: minDate,
+        maxDate: maxDate,
+        disable: disabledDates,
+        onChange: function(selectedDates, dateStr, instance) {
+            if (dateStr) {
+                const target = document.getElementById('date-' + dateStr);
+                if (target) {
+                    const wrapper = document.getElementById('scroll-wrapper');
+                    const targetRect = target.getBoundingClientRect();
+                    const wrapperRect = wrapper.getBoundingClientRect();
+                    let targetTop = targetRect.top - wrapperRect.top + wrapper.scrollTop;
+                    targetTop -= 10; // небольшой отступ сверху
+                    wrapper.scrollTop = targetTop;
+                }
+            }
+        },
+        placeholder: "Выберите дату"
     });
 </script>
 </body>
