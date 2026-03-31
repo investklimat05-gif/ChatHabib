@@ -89,6 +89,12 @@ def generate_html(chat_txt_path, media_folder, output_html, your_name):
                             <button class="load-audio">▶ Воспроизвести аудио</button>
                         </div>
                         '''
+                    elif ext == '.pdf':
+                        file_html = f'''
+                        <div class="pdf-placeholder" data-src="media/{dst_filename}">
+                            <button class="load-pdf">📄 Просмотреть PDF</button>
+                        </div>
+                        '''
                     else:
                         file_html = f'<a href="media/{dst_filename}" target="_blank" class="media-doc">📄 {dst_filename}</a>'
                     if debug_count < 5:
@@ -223,12 +229,34 @@ def generate_html(chat_txt_path, media_folder, output_html, your_name):
             font-size: 10px; border: 1px solid #b3e0f2;
         }
         .media-image { max-width: 100%; border-radius: 6px; margin: 4px 0; }
-        .video-placeholder { background: #000; color: #fff; padding: 20px; text-align: center; border-radius: 8px; }
+        .video-placeholder, .pdf-placeholder {
+            background: #000;
+            color: #fff;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px;
+            margin: 8px 0;
+        }
+        .pdf-placeholder {
+            background: #f0f2f5;
+            color: #111b21;
+            border: 1px dashed #ccc;
+        }
         .audio-placeholder { margin: 4px 0; }
-        .load-audio, .load-video {
-            background: #25D366; border: none; border-radius: 16px;
-            padding: 6px 12px; color: white; font-size: 12px;
-            cursor: pointer; display: inline-block;
+        .load-audio, .load-video, .load-pdf {
+            background: #25D366;
+            border: none;
+            border-radius: 16px;
+            padding: 6px 12px;
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+            display: inline-block;
+            margin: 4px;
+        }
+        .load-pdf {
+            background: #dcf8c5;
+            color: #075e54;
         }
         .media-doc { display: inline-block; background: #e9ecef; padding: 4px 8px; border-radius: 6px; text-decoration: none; color: #0669de; }
         .media-missing { color: red; font-size: 12px; }
@@ -261,6 +289,12 @@ def generate_html(chat_txt_path, media_folder, output_html, your_name):
             border: 1px solid #ccc;
             background: white;
             margin: 0 2px;
+        }
+        .pdf-viewer {
+            width: 100%;
+            height: 600px;
+            border: none;
+            margin-top: 8px;
         }
     </style>
 </head>
@@ -415,6 +449,32 @@ def generate_html(chat_txt_path, media_folder, output_html, your_name):
         });
     }
 
+    function setupPdfPlaceholders() {
+        document.querySelectorAll('.pdf-placeholder').forEach(placeholder => {
+            const btn = placeholder.querySelector('.load-pdf');
+            if (!btn) return;
+            btn.removeEventListener('click', pdfClickHandler);
+            btn.addEventListener('click', pdfClickHandler);
+            function pdfClickHandler(e) {
+                e.stopPropagation();
+                const existingIframe = placeholder.querySelector('iframe');
+                if (existingIframe) {
+                    existingIframe.remove();
+                    btn.style.display = 'inline-block';
+                    return;
+                }
+                const src = placeholder.getAttribute('data-src');
+                if (!src) return;
+                const iframe = document.createElement('iframe');
+                iframe.src = src;
+                iframe.className = 'pdf-viewer';
+                iframe.setAttribute('allowfullscreen', '');
+                btn.style.display = 'none';
+                placeholder.appendChild(iframe);
+            }
+        });
+    }
+
     let lastDate = null;
     messages.forEach(msg => {
         if (lastDate !== msg.date_label) {
@@ -443,6 +503,7 @@ def generate_html(chat_txt_path, media_folder, output_html, your_name):
 
     setupAudioPlaceholders();
     setupVideoPlaceholders();
+    setupPdfPlaceholders();
 
     // === КАЛЕНДАРЬ С ВЫПАДАЮЩИМ СПИСКОМ ДЛЯ ГОДА ===
     const availableDatesSet = new Set();
