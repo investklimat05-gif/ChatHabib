@@ -150,7 +150,7 @@
             background: white;
             margin: 0 2px;
         }
-        /* Модальное окно для PDF (только для десктопа) */
+        /* Модальное окно для PDF */
         .pdf-modal-overlay {
             position: fixed;
             top: 0;
@@ -378,41 +378,36 @@
                 const src = placeholder.getAttribute('data-src');
                 if (!src) return;
 
-                // Определяем мобильное устройство по ширине экрана
-                const isMobile = window.innerWidth <= 768;
-                if (isMobile) {
-                    // На мобильных открываем в новой вкладке (родной просмотрщик)
-                    window.open(src, '_blank');
-                } else {
-                    // На десктопе – модальное окно
-                    const existingModal = document.querySelector('.pdf-modal-overlay');
-                    if (existingModal) {
-                        existingModal.remove();
-                        return;
-                    }
-                    const overlay = document.createElement('div');
-                    overlay.className = 'pdf-modal-overlay';
-                    const content = document.createElement('div');
-                    content.className = 'pdf-modal-content';
-                    const iframe = document.createElement('iframe');
-                    iframe.src = src;
-                    iframe.setAttribute('allowfullscreen', '');
-                    content.appendChild(iframe);
-                    overlay.appendChild(content);
-                    const closeBtn = document.createElement('div');
-                    closeBtn.className = 'pdf-modal-close';
-                    closeBtn.innerHTML = '×';
-                    closeBtn.onclick = () => overlay.remove();
-                    overlay.appendChild(closeBtn);
-                    overlay.onclick = (e) => {
-                        if (e.target === overlay) overlay.remove();
-                    };
-                    document.body.appendChild(overlay);
-                    document.body.style.overflow = 'hidden';
-                    overlay.addEventListener('remove', () => {
-                        document.body.style.overflow = '';
-                    });
+                // Если модальное окно уже открыто, закрываем его
+                const existingModal = document.querySelector('.pdf-modal-overlay');
+                if (existingModal) {
+                    existingModal.remove();
+                    return;
                 }
+
+                // Создаём оверлей
+                const overlay = document.createElement('div');
+                overlay.className = 'pdf-modal-overlay';
+                const content = document.createElement('div');
+                content.className = 'pdf-modal-content';
+                const iframe = document.createElement('iframe');
+                iframe.src = src;
+                iframe.setAttribute('allowfullscreen', '');
+                content.appendChild(iframe);
+                overlay.appendChild(content);
+                const closeBtn = document.createElement('div');
+                closeBtn.className = 'pdf-modal-close';
+                closeBtn.innerHTML = '×';
+                closeBtn.onclick = () => overlay.remove();
+                overlay.appendChild(closeBtn);
+                overlay.onclick = (e) => {
+                    if (e.target === overlay) overlay.remove();
+                };
+                document.body.appendChild(overlay);
+                document.body.style.overflow = 'hidden';
+                overlay.addEventListener('remove', () => {
+                    document.body.style.overflow = '';
+                });
             }
         });
     }
