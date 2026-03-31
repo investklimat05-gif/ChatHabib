@@ -290,11 +290,69 @@ def generate_html(chat_txt_path, media_folder, output_html, your_name):
             background: white;
             margin: 0 2px;
         }
-        .pdf-viewer {
+        /* Модальное окно для PDF */
+        .pdf-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
             width: 100%;
-            height: 600px;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 10000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+        }
+        .pdf-modal-content {
+            width: 95%;
+            height: 95%;
+            background: #fff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            position: relative;
+            cursor: default;
+        }
+        .pdf-modal-content iframe {
+            width: 100%;
+            height: 100%;
             border: none;
-            margin-top: 8px;
+        }
+        .pdf-modal-close {
+            position: absolute;
+            top: 12px;
+            right: 20px;
+            font-size: 32px;
+            font-weight: bold;
+            color: #fff;
+            background: rgba(0,0,0,0.5);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 10001;
+            transition: background 0.2s;
+        }
+        .pdf-modal-close:hover {
+            background: rgba(0,0,0,0.8);
+        }
+        @media (max-width: 768px) {
+            .pdf-modal-content {
+                width: 100%;
+                height: 100%;
+                border-radius: 0;
+            }
+            .pdf-modal-close {
+                top: 8px;
+                right: 8px;
+                width: 32px;
+                height: 32px;
+                font-size: 24px;
+            }
         }
     </style>
 </head>
@@ -453,24 +511,53 @@ def generate_html(chat_txt_path, media_folder, output_html, your_name):
         document.querySelectorAll('.pdf-placeholder').forEach(placeholder => {
             const btn = placeholder.querySelector('.load-pdf');
             if (!btn) return;
+            // Удаляем предыдущий обработчик, если был
             btn.removeEventListener('click', pdfClickHandler);
             btn.addEventListener('click', pdfClickHandler);
             function pdfClickHandler(e) {
                 e.stopPropagation();
-                const existingIframe = placeholder.querySelector('iframe');
-                if (existingIframe) {
-                    existingIframe.remove();
-                    btn.style.display = 'inline-block';
-                    return;
-                }
                 const src = placeholder.getAttribute('data-src');
                 if (!src) return;
+
+                // Если модальное окно уже открыто, закрываем его
+                const existingModal = document.querySelector('.pdf-modal-overlay');
+                if (existingModal) {
+                    existingModal.remove();
+                    return;
+                }
+
+                // Создаём оверлей
+                const overlay = document.createElement('div');
+                overlay.className = 'pdf-modal-overlay';
+
+                const content = document.createElement('div');
+                content.className = 'pdf-modal-content';
+
                 const iframe = document.createElement('iframe');
                 iframe.src = src;
-                iframe.className = 'pdf-viewer';
                 iframe.setAttribute('allowfullscreen', '');
-                btn.style.display = 'none';
-                placeholder.appendChild(iframe);
+
+                content.appendChild(iframe);
+                overlay.appendChild(content);
+
+                // Кнопка закрытия
+                const closeBtn = document.createElement('div');
+                closeBtn.className = 'pdf-modal-close';
+                closeBtn.innerHTML = '×';
+                closeBtn.onclick = () => overlay.remove();
+                overlay.appendChild(closeBtn);
+
+                // Закрытие по клику на фон
+                overlay.onclick = (e) => {
+                    if (e.target === overlay) overlay.remove();
+                };
+
+                document.body.appendChild(overlay);
+                // Блокируем прокрутку основного контента (необязательно)
+                document.body.style.overflow = 'hidden';
+                overlay.addEventListener('remove', () => {
+                    document.body.style.overflow = '';
+                });
             }
         });
     }
@@ -533,29 +620,20 @@ def generate_html(chat_txt_path, media_folder, output_html, your_name):
         current.setDate(current.getDate() + 1);
     }
 
-    // Функция замены поля ввода года на выпадающий список и удаления стрелок
     function replaceYearInputWithSelect(fpInstance) {
         const calendar = fpInstance.calendarContainer;
         if (!calendar) return;
-        
-        // Удаляем стрелки вверх/вниз, если они остались (на случай, если CSS не сработал)
         const arrows = calendar.querySelectorAll('.arrowUp, .arrowDown');
         arrows.forEach(arrow => arrow.remove());
-        
-        // Ищем существующий select
         let existingSelect = calendar.querySelector('.flatpickr-year-select');
         if (existingSelect) {
-            // Обновляем выбранное значение, если год изменился
             if (existingSelect.value != fpInstance.currentYear) {
                 existingSelect.value = fpInstance.currentYear;
             }
             return;
         }
-        
         const yearInput = calendar.querySelector('.numInput.cur-year');
         if (!yearInput || yearInput.tagName !== 'INPUT') return;
-        
-        // Создаём select
         const select = document.createElement('select');
         select.className = 'flatpickr-year-select';
         const startYear = minDate.getFullYear();
@@ -567,24 +645,17 @@ def generate_html(chat_txt_path, media_folder, output_html, your_name):
             if (y === fpInstance.currentYear) option.selected = true;
             select.appendChild(option);
         }
-        
-        // При изменении select – безопасно меняем год
         select.addEventListener('change', (e) => {
             const year = parseInt(e.target.value);
-            // Получаем текущую дату (день и месяц)
             let newDate = new Date(fpInstance.currentDate);
             newDate.setFullYear(year);
-            // Корректируем дату, если она выходит за minDate/maxDate
             if (newDate < minDate) newDate = minDate;
             if (newDate > maxDate) newDate = maxDate;
             fpInstance.setDate(newDate);
         });
-        
-        // Заменяем input на select
         yearInput.parentNode.replaceChild(select, yearInput);
     }
 
-    // Инициализация flatpickr
     const fp = flatpickr("#date-search", {
         dateFormat: "Y-m-d",
         minDate: minDate,
@@ -604,20 +675,17 @@ def generate_html(chat_txt_path, media_folder, output_html, your_name):
             }
         },
         onMonthChange: function(selectedDates, dateStr, instance) {
-            // При смене месяца/года обновляем выбранный option в select (если он существует)
             const select = instance.calendarContainer.querySelector('.flatpickr-year-select');
             if (select && select.value != instance.currentYear) {
                 select.value = instance.currentYear;
             }
         },
         onOpen: function(selectedDates, dateStr, instance) {
-            // Заменяем input на select при открытии календаря
             replaceYearInputWithSelect(instance);
         },
         placeholder: "Выберите дату"
     });
 
-    // Если календарь уже открыт (например, при автофокусе), применяем замену
     if (fp.isOpen) {
         replaceYearInputWithSelect(fp);
     }
