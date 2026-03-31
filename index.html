@@ -150,7 +150,7 @@
             background: white;
             margin: 0 2px;
         }
-        /* Модальное окно для PDF */
+        /* Модальное окно для PDF (только для десктопа) */
         .pdf-modal-overlay {
             position: fixed;
             top: 0;
@@ -371,7 +371,6 @@
         document.querySelectorAll('.pdf-placeholder').forEach(placeholder => {
             const btn = placeholder.querySelector('.load-pdf');
             if (!btn) return;
-            // Удаляем предыдущий обработчик, если был
             btn.removeEventListener('click', pdfClickHandler);
             btn.addEventListener('click', pdfClickHandler);
             function pdfClickHandler(e) {
@@ -379,45 +378,41 @@
                 const src = placeholder.getAttribute('data-src');
                 if (!src) return;
 
-                // Если модальное окно уже открыто, закрываем его
-                const existingModal = document.querySelector('.pdf-modal-overlay');
-                if (existingModal) {
-                    existingModal.remove();
-                    return;
+                // Определяем мобильное устройство по ширине экрана
+                const isMobile = window.innerWidth <= 768;
+                if (isMobile) {
+                    // На мобильных открываем в новой вкладке (родной просмотрщик)
+                    window.open(src, '_blank');
+                } else {
+                    // На десктопе – модальное окно
+                    const existingModal = document.querySelector('.pdf-modal-overlay');
+                    if (existingModal) {
+                        existingModal.remove();
+                        return;
+                    }
+                    const overlay = document.createElement('div');
+                    overlay.className = 'pdf-modal-overlay';
+                    const content = document.createElement('div');
+                    content.className = 'pdf-modal-content';
+                    const iframe = document.createElement('iframe');
+                    iframe.src = src;
+                    iframe.setAttribute('allowfullscreen', '');
+                    content.appendChild(iframe);
+                    overlay.appendChild(content);
+                    const closeBtn = document.createElement('div');
+                    closeBtn.className = 'pdf-modal-close';
+                    closeBtn.innerHTML = '×';
+                    closeBtn.onclick = () => overlay.remove();
+                    overlay.appendChild(closeBtn);
+                    overlay.onclick = (e) => {
+                        if (e.target === overlay) overlay.remove();
+                    };
+                    document.body.appendChild(overlay);
+                    document.body.style.overflow = 'hidden';
+                    overlay.addEventListener('remove', () => {
+                        document.body.style.overflow = '';
+                    });
                 }
-
-                // Создаём оверлей
-                const overlay = document.createElement('div');
-                overlay.className = 'pdf-modal-overlay';
-
-                const content = document.createElement('div');
-                content.className = 'pdf-modal-content';
-
-                const iframe = document.createElement('iframe');
-                iframe.src = src;
-                iframe.setAttribute('allowfullscreen', '');
-
-                content.appendChild(iframe);
-                overlay.appendChild(content);
-
-                // Кнопка закрытия
-                const closeBtn = document.createElement('div');
-                closeBtn.className = 'pdf-modal-close';
-                closeBtn.innerHTML = '×';
-                closeBtn.onclick = () => overlay.remove();
-                overlay.appendChild(closeBtn);
-
-                // Закрытие по клику на фон
-                overlay.onclick = (e) => {
-                    if (e.target === overlay) overlay.remove();
-                };
-
-                document.body.appendChild(overlay);
-                // Блокируем прокрутку основного контента (необязательно)
-                document.body.style.overflow = 'hidden';
-                overlay.addEventListener('remove', () => {
-                    document.body.style.overflow = '';
-                });
             }
         });
     }
