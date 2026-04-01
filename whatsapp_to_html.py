@@ -147,7 +147,6 @@ def generate_html(chat_txt_path, media_folder, output_html, your_name):
     <title>WhatsApp Chat</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <style>
         :root {
             --wa-bg: #e5ddd5;
@@ -291,83 +290,68 @@ def generate_html(chat_txt_path, media_folder, output_html, your_name):
             background: white;
             margin: 0 2px;
         }
-        /* Модальное окно для PDF с поддержкой масштабирования */
+        /* Модальное окно для PDF (десктоп) */
         .pdf-modal-overlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.9);
+            background: rgba(0, 0, 0, 0.8);
             z-index: 10000;
             display: flex;
-            flex-direction: column;
             justify-content: center;
             align-items: center;
             cursor: pointer;
         }
-        .pdf-modal-header {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            padding: 12px;
-            background: rgba(0,0,0,0.5);
-            display: flex;
-            justify-content: flex-end;
-            z-index: 10001;
+        .pdf-modal-content {
+            width: 95%;
+            height: 95%;
+            background: #fff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            position: relative;
+            cursor: default;
+        }
+        .pdf-modal-content iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
         }
         .pdf-modal-close {
+            position: absolute;
+            top: 12px;
+            right: 20px;
             font-size: 32px;
             font-weight: bold;
-            color: white;
-            background: rgba(0,0,0,0.6);
-            width: 44px;
-            height: 44px;
+            color: #fff;
+            background: rgba(0,0,0,0.5);
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
+            z-index: 10001;
             transition: background 0.2s;
         }
         .pdf-modal-close:hover {
-            background: rgba(0,0,0,0.9);
-        }
-        .pdf-container {
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: #000;
-        }
-        .pdf-canvas-wrapper {
-            transform-origin: 0 0;
-            transition: transform 0.1s ease-out;
-            will-change: transform;
-        }
-        canvas {
-            display: block;
-            background: #fff;
-            box-shadow: 0 0 10px rgba(0,0,0,0.3);
-        }
-        /* Для мобильных устройств скрываем полосу прокрутки, используем жесты */
-        .pdf-container::-webkit-scrollbar {
-            width: 0;
-            height: 0;
-        }
-        .loading-pdf {
-            color: white;
-            font-size: 18px;
-            text-align: center;
+            background: rgba(0,0,0,0.8);
         }
         @media (max-width: 768px) {
+            .pdf-modal-content {
+                width: 100%;
+                height: 100%;
+                border-radius: 0;
+            }
             .pdf-modal-close {
-                width: 40px;
-                height: 40px;
-                font-size: 28px;
+                top: 8px;
+                right: 8px;
+                width: 32px;
+                height: 32px;
+                font-size: 24px;
             }
         }
     </style>
@@ -386,9 +370,6 @@ def generate_html(chat_txt_path, media_folder, output_html, your_name):
     const messages = {messages_json};
     const yourName = {your_name_json};
     const container = document.getElementById('messages');
-
-    // Настройка PDF.js worker
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
     function createVoicePlayer(src) {
         const id = 'player-' + Math.random().toString(36).substr(2, 9);
@@ -526,174 +507,6 @@ def generate_html(chat_txt_path, media_folder, output_html, your_name):
         });
     }
 
-    // Функция для отображения PDF с поддержкой масштабирования жестами
-    async function showPdfModal(src) {
-        const overlay = document.createElement('div');
-        overlay.className = 'pdf-modal-overlay';
-
-        const header = document.createElement('div');
-        header.className = 'pdf-modal-header';
-        const closeBtn = document.createElement('div');
-        closeBtn.className = 'pdf-modal-close';
-        closeBtn.innerHTML = '×';
-        closeBtn.onclick = () => overlay.remove();
-        header.appendChild(closeBtn);
-        overlay.appendChild(header);
-
-        const containerDiv = document.createElement('div');
-        containerDiv.className = 'pdf-container';
-        const canvasWrapper = document.createElement('div');
-        canvasWrapper.className = 'pdf-canvas-wrapper';
-        const canvas = document.createElement('canvas');
-        canvasWrapper.appendChild(canvas);
-        containerDiv.appendChild(canvasWrapper);
-        overlay.appendChild(containerDiv);
-
-        document.body.appendChild(overlay);
-        document.body.style.overflow = 'hidden';
-
-        // Закрытие по клику на фон
-        overlay.onclick = (e) => {
-            if (e.target === overlay) overlay.remove();
-        };
-        overlay.addEventListener('remove', () => {
-            document.body.style.overflow = '';
-        });
-
-        // Загрузка PDF
-        const loadingMsg = document.createElement('div');
-        loadingMsg.className = 'loading-pdf';
-        loadingMsg.textContent = 'Загрузка PDF...';
-        containerDiv.appendChild(loadingMsg);
-
-        try {
-            const loadingTask = pdfjsLib.getDocument(src);
-            const pdf = await loadingTask.promise;
-            const page = await pdf.getPage(1);
-            const viewport = page.getViewport({ scale: 1.0 });
-            const context = canvas.getContext('2d');
-
-            // Определяем масштаб для подгонки под ширину окна
-            const containerWidth = containerDiv.clientWidth;
-            const containerHeight = containerDiv.clientHeight;
-            const scale = Math.min(containerWidth / viewport.width, containerHeight / viewport.height, 2);
-            const scaledViewport = page.getViewport({ scale });
-            canvas.width = scaledViewport.width;
-            canvas.height = scaledViewport.height;
-
-            const renderContext = {
-                canvasContext: context,
-                viewport: scaledViewport,
-            };
-            await page.render(renderContext).promise;
-
-            // Удаляем сообщение о загрузке
-            loadingMsg.remove();
-
-            // Настройка масштабирования жестами (pinch-to-zoom) и перемещения
-            let initialDistance = 0;
-            let currentScale = 1;
-            let startX = 0, startY = 0;
-            let translateX = 0, translateY = 0;
-            let isPanning = false;
-
-            function updateTransform() {
-                canvasWrapper.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentScale})`;
-            }
-
-            function getDistance(touches) {
-                const dx = touches[0].clientX - touches[1].clientX;
-                const dy = touches[0].clientY - touches[1].clientY;
-                return Math.hypot(dx, dy);
-            }
-
-            function getCenter(touches) {
-                return {
-                    x: (touches[0].clientX + touches[1].clientX) / 2,
-                    y: (touches[0].clientY + touches[1].clientY) / 2
-                };
-            }
-
-            canvasWrapper.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                const touches = e.touches;
-                if (touches.length === 2) {
-                    initialDistance = getDistance(touches);
-                    const center = getCenter(touches);
-                    startX = center.x;
-                    startY = center.y;
-                } else if (touches.length === 1) {
-                    isPanning = true;
-                    startX = touches[0].clientX - translateX;
-                    startY = touches[0].clientY - translateY;
-                }
-            });
-
-            canvasWrapper.addEventListener('touchmove', (e) => {
-                e.preventDefault();
-                const touches = e.touches;
-                if (touches.length === 2 && initialDistance > 0) {
-                    const newDistance = getDistance(touches);
-                    const scaleFactor = newDistance / initialDistance;
-                    let newScale = currentScale * scaleFactor;
-                    newScale = Math.min(Math.max(newScale, 0.5), 3);
-                    if (newScale !== currentScale) {
-                        const center = getCenter(touches);
-                        const before = { x: center.x, y: center.y };
-                        currentScale = newScale;
-                        updateTransform();
-                        const after = { x: center.x, y: center.y };
-                        translateX += (after.x - before.x);
-                        translateY += (after.y - before.y);
-                        updateTransform();
-                    }
-                    initialDistance = newDistance;
-                } else if (touches.length === 1 && isPanning) {
-                    translateX = touches[0].clientX - startX;
-                    translateY = touches[0].clientY - startY;
-                    updateTransform();
-                }
-            });
-
-            canvasWrapper.addEventListener('touchend', (e) => {
-                if (e.touches.length < 2) initialDistance = 0;
-                if (e.touches.length === 0) isPanning = false;
-            });
-
-            // Поддержка колесика мыши для масштабирования (на десктопе)
-            canvasWrapper.addEventListener('wheel', (e) => {
-                e.preventDefault();
-                const delta = e.deltaY > 0 ? 0.9 : 1.1;
-                let newScale = currentScale * delta;
-                newScale = Math.min(Math.max(newScale, 0.5), 3);
-                if (newScale !== currentScale) {
-                    const rect = canvasWrapper.getBoundingClientRect();
-                    const mouseX = e.clientX - rect.left;
-                    const mouseY = e.clientY - rect.top;
-                    const before = { x: mouseX, y: mouseY };
-                    currentScale = newScale;
-                    updateTransform();
-                    const after = { x: mouseX, y: mouseY };
-                    translateX += (after.x - before.x);
-                    translateY += (after.y - before.y);
-                    updateTransform();
-                }
-            });
-
-            // Начальное позиционирование: центрируем canvas
-            const canvasRect = canvas.getBoundingClientRect();
-            const containerRect = containerDiv.getBoundingClientRect();
-            translateX = (containerRect.width - canvasRect.width) / 2;
-            translateY = (containerRect.height - canvasRect.height) / 2;
-            updateTransform();
-
-        } catch (err) {
-            console.error('Ошибка загрузки PDF:', err);
-            loadingMsg.textContent = 'Ошибка загрузки PDF. Попробуйте позже.';
-            loadingMsg.style.color = '#f00';
-        }
-    }
-
     function setupPdfPlaceholders() {
         document.querySelectorAll('.pdf-placeholder').forEach(placeholder => {
             const btn = placeholder.querySelector('.load-pdf');
@@ -704,7 +517,41 @@ def generate_html(chat_txt_path, media_folder, output_html, your_name):
                 e.stopPropagation();
                 const src = placeholder.getAttribute('data-src');
                 if (!src) return;
-                showPdfModal(src);
+
+                const isMobile = window.innerWidth <= 768;
+                if (isMobile) {
+                    // На мобильных – открываем PDF в том же окне (нативный просмотрщик)
+                    window.location.href = src;
+                } else {
+                    // На десктопе – модальное окно с iframe
+                    const existingModal = document.querySelector('.pdf-modal-overlay');
+                    if (existingModal) {
+                        existingModal.remove();
+                        return;
+                    }
+                    const overlay = document.createElement('div');
+                    overlay.className = 'pdf-modal-overlay';
+                    const content = document.createElement('div');
+                    content.className = 'pdf-modal-content';
+                    const iframe = document.createElement('iframe');
+                    iframe.src = src;
+                    iframe.setAttribute('allowfullscreen', '');
+                    content.appendChild(iframe);
+                    overlay.appendChild(content);
+                    const closeBtn = document.createElement('div');
+                    closeBtn.className = 'pdf-modal-close';
+                    closeBtn.innerHTML = '×';
+                    closeBtn.onclick = () => overlay.remove();
+                    overlay.appendChild(closeBtn);
+                    overlay.onclick = (e) => {
+                        if (e.target === overlay) overlay.remove();
+                    };
+                    document.body.appendChild(overlay);
+                    document.body.style.overflow = 'hidden';
+                    overlay.addEventListener('remove', () => {
+                        document.body.style.overflow = '';
+                    });
+                }
             }
         });
     }
