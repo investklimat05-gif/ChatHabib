@@ -29,9 +29,45 @@
             flex: 0 0 auto; background-color: var(--wa-panel);
             padding: 10px 15px; display: flex; align-items: center;
             justify-content: space-between; gap: 10px; z-index: 1000;
+            flex-wrap: wrap;
         }
-        .search-panel input {
-            flex: 1; padding: 8px; border-radius: 8px; border: 1px solid #ccc; font-size: 14px;
+        .search-panel .date-input {
+            flex: 1;
+            min-width: 150px;
+        }
+        .search-panel .text-search {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: white;
+            border-radius: 8px;
+            padding: 4px 8px;
+            border: 1px solid #ccc;
+            flex: 2;
+            min-width: 200px;
+        }
+        .search-panel .text-search input {
+            flex: 1;
+            border: none;
+            padding: 6px;
+            font-size: 14px;
+            outline: none;
+            background: transparent;
+        }
+        .search-panel .text-search button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px;
+            color: var(--wa-secondary);
+        }
+        .search-panel .text-search .nav-buttons {
+            display: flex;
+            gap: 4px;
+        }
+        .search-panel .text-search .clear-search {
+            font-size: 18px;
         }
         .chat-wrapper {
             flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
@@ -58,6 +94,12 @@
         .bubble-left { background-color: var(--wa-bubble-in); }
         .text { font-size: 15px; line-height: 1.4; color: var(--wa-text); white-space: pre-wrap; }
         .time { font-size: 11px; color: var(--wa-secondary); text-align: right; margin-top: 4px; }
+        mark {
+            background-color: #ffeb3b;
+            color: #111b21;
+            border-radius: 2px;
+            padding: 0 1px;
+        }
         .voice-player {
             display: flex; align-items: center; gap: 10px;
             padding: 5px; min-width: 220px; user-select: none;
@@ -213,13 +255,29 @@
                 height: 32px;
                 font-size: 24px;
             }
+            .search-panel {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .search-panel .date-input,
+            .search-panel .text-search {
+                width: 100%;
+            }
         }
     </style>
 </head>
 <body>
 
 <div class="search-panel">
-    <input type="text" id="date-search" placeholder="Выберите дату">
+    <input type="text" id="date-search" class="date-input" placeholder="Выберите дату">
+    <div class="text-search">
+        <input type="text" id="text-search-input" placeholder="Поиск в чате">
+        <div class="nav-buttons">
+            <button id="search-prev" disabled>▲</button>
+            <button id="search-next" disabled>▼</button>
+        </div>
+        <button id="clear-search" class="clear-search">✕</button>
+    </div>
 </div>
 
 <div class="chat-wrapper" id="scroll-wrapper">
@@ -380,10 +438,8 @@
 
                 const isMobile = window.innerWidth <= 768;
                 if (isMobile) {
-                    // На мобильных – открываем PDF в новой вкладке (нативный просмотрщик)
                     window.open(src, '_blank');
                 } else {
-                    // На десктопе – модальное окно с iframe
                     const existingModal = document.querySelector('.pdf-modal-overlay');
                     if (existingModal) {
                         existingModal.remove();
@@ -416,6 +472,7 @@
         });
     }
 
+    // Построение DOM
     let lastDate = null;
     messages.forEach(msg => {
         if (lastDate !== msg.date_label) {
@@ -431,10 +488,13 @@
         const msgDiv = document.createElement('div');
         msgDiv.className = `message ${isMe ? 'message-right' : ''}`;
         let mediaHtml = msg.media || "";
+        // Сохраняем оригинальный текст для поиска
+        const originalText = msg.text || "";
+        msgDiv.setAttribute('data-original-text', originalText);
         msgDiv.innerHTML = `
             <div class="bubble ${isMe ? 'bubble-right' : 'bubble-left'}">
                 ${!isMe ? `<div style="font-weight:bold; font-size:12px; color:#d62976; margin-bottom:4px;">${msg.author}</div>` : ''}
-                ${msg.text ? `<div class="text">${msg.text}</div>` : ''}
+                <div class="text">${msg.text ? msg.text.replace(/[&<>]/g, function(m){if(m === '&') return '&amp;'; if(m === '<') return '&lt;'; if(m === '>') return '&gt;'; return m;}) : ''}</div>
                 ${mediaHtml}
                 <div class="time">${msg.time}</div>
             </div>
@@ -445,6 +505,99 @@
     setupAudioPlaceholders();
     setupVideoPlaceholders();
     setupPdfPlaceholders();
+
+    // === ТЕКСТОВЫЙ ПОИСК ===
+    const searchInput = document.getElementById('text-search-input');
+    const prevBtn = document.getElementById('search-prev');
+    const nextBtn = document.getElementById('search-next');
+    const clearBtn = document.getElementById('clear-search');
+
+    let currentMatchIndex = -1;
+    let matches = [];
+
+    function escapeRegex(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    function clearHighlights() {
+        const textDivs = document.querySelectorAll('.message .text');
+        textDivs.forEach(div => {
+            const original = div.parentElement.parentElement.getAttribute('data-original-text');
+            if (original !== null) {
+                div.innerHTML = original.replace(/[&<>]/g, function(m){if(m === '&') return '&amp;'; if(m === '<') return '&lt;'; if(m === '>') return '&gt;'; return m;});
+            }
+        });
+        matches = [];
+        currentMatchIndex = -1;
+        prevBtn.disabled = true;
+        nextBtn.disabled = true;
+    }
+
+    function performSearch() {
+        clearHighlights();
+        const query = searchInput.value.trim();
+        if (query === '') {
+            return;
+        }
+        const regex = new RegExp('(' + escapeRegex(query) + ')', 'gi');
+        const textDivs = document.querySelectorAll('.message .text');
+        let matchCount = 0;
+        textDivs.forEach((div, idx) => {
+            const originalText = div.parentElement.parentElement.getAttribute('data-original-text');
+            if (!originalText) return;
+            const escapedOriginal = originalText.replace(/[&<>]/g, function(m){if(m === '&') return '&amp;'; if(m === '<') return '&lt;'; if(m === '>') return '&gt;'; return m;});
+            const newHtml = escapedOriginal.replace(regex, '<mark>$1</mark>');
+            if (newHtml !== escapedOriginal) {
+                div.innerHTML = newHtml;
+                matches.push({ div, originalText });
+                matchCount++;
+            } else {
+                div.innerHTML = escapedOriginal;
+            }
+        });
+        if (matches.length > 0) {
+            currentMatchIndex = 0;
+            scrollToMatch(currentMatchIndex);
+            prevBtn.disabled = false;
+            nextBtn.disabled = false;
+        } else {
+            prevBtn.disabled = true;
+            nextBtn.disabled = true;
+        }
+    }
+
+    function scrollToMatch(index) {
+        if (index < 0 || index >= matches.length) return;
+        const matchDiv = matches[index].div;
+        const wrapper = document.getElementById('scroll-wrapper');
+        const targetRect = matchDiv.getBoundingClientRect();
+        const wrapperRect = wrapper.getBoundingClientRect();
+        let targetTop = targetRect.top - wrapperRect.top + wrapper.scrollTop - 80; // отступ сверху
+        wrapper.scrollTo({ top: targetTop, behavior: 'smooth' });
+        // Подсветка текущего совпадения (дополнительно)
+        matchDiv.querySelector('mark')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+
+    function nextMatch() {
+        if (matches.length === 0) return;
+        currentMatchIndex = (currentMatchIndex + 1) % matches.length;
+        scrollToMatch(currentMatchIndex);
+    }
+
+    function prevMatch() {
+        if (matches.length === 0) return;
+        currentMatchIndex = (currentMatchIndex - 1 + matches.length) % matches.length;
+        scrollToMatch(currentMatchIndex);
+    }
+
+    searchInput.addEventListener('input', performSearch);
+    nextBtn.addEventListener('click', nextMatch);
+    prevBtn.addEventListener('click', prevMatch);
+    clearBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        clearHighlights();
+        searchInput.focus();
+    });
 
     // === КАЛЕНДАРЬ С ВЫПАДАЮЩИМ СПИСКОМ ДЛЯ ГОДА ===
     const availableDatesSet = new Set();
