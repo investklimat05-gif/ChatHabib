@@ -520,8 +520,8 @@ def generate_html(chat_txt_path, media_folder, output_html, your_name):
 
                 const isMobile = window.innerWidth <= 768;
                 if (isMobile) {
-                    // На мобильных – открываем PDF в том же окне (нативный просмотрщик)
-                    window.location.href = src;
+                    // На мобильных – открываем PDF в новой вкладке (нативный просмотрщик)
+                    window.open(src, '_blank');
                 } else {
                     // На десктопе – модальное окно с iframe
                     const existingModal = document.querySelector('.pdf-modal-overlay');
